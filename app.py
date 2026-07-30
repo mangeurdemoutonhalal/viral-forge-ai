@@ -2,6 +2,7 @@ import os
 import re
 import json
 import subprocess
+import urllib.request
 import streamlit as st
 import google.generativeai as genai
 import yt_dlp
@@ -25,33 +26,40 @@ def download_youtube_video(url, output_path="input_video.mp4"):
     if os.path.exists(output_path):
         os.remove(output_path)
     
-    # Nettoyage de l'URL YouTube (extraction de l'ID propre)
+    # Nettoyage de l'URL YouTube
     video_id_match = re.search(r"(?:v=|\/)([0-9A-Za-z_-]{11})", url)
-    if video_id_match:
-        url = f"https://www.youtube.com/watch?v={video_id_match.group(1)}"
+    clean_url = f"https://www.youtube.com/watch?v={video_id_match.group(1)}" if video_id_match else url
 
-    # Configuration anti-blocage 403 (imitation client mobile Android / Web)
-    ydl_opts = {
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'outtmpl': output_path,
-        'quiet': True,
-        'no_warnings': True,
-        'noplaylist': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'ios', 'web']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            'Accept-Language': 'fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7',
+    # Méthode 1 : yt-dlp direct
+    try:
+        ydl_opts = {
+            'format': 'bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': output_path,
+            'quiet': True,
+            'no_warnings': True,
+            'noplaylist': True,
+            'extractor_args': {'youtube': {'player_client': ['ios', 'android', 'mweb']}}
         }
-    }
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([url])
-        
-    return output_path
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([clean_url])
+        return output_path
+    except Exception:
+        pass
+
+    # Méthode 2 (Secours Anti-403) : Relais API
+    req = urllib.request.Request(
+        "https://api.cobalt.tools/api/json",
+        data=json.dumps({"url": clean_url, "videoQuality": "720"}).encode('utf-8'),
+        headers={"Accept": "application/json", "Content-Type": "application/json", "User-Agent": "Mozilla/5.0"}
+    )
+    with urllib.request.urlopen(req) as response:
+        res_data = json.loads(response.read().decode('utf-8'))
+        download_url = res_data.get("url")
+        if download_url:
+            urllib.request.urlretrieve(download_url, output_path)
+            return output_path
+
+    raise Exception("Impossible d'extraire la vidéo. Vérifiez que le lien est bien public.")
 
 def get_video_duration(video_path):
     cmd = [
@@ -125,7 +133,7 @@ if st.button("🚀 Générer mes clips viraux", type="primary"):
             
             try:
                 clips_info = analyze_with_gemini(api_key, duration, num_clips)
-            except Exception as e:
+            except Exception:
                 clip_len = min(30, duration / num_clips)
                 clips_info = []
                 for i in range(num_clips):
