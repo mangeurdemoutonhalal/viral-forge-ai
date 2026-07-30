@@ -1,14 +1,14 @@
 import os
+import re
 import json
 import subprocess
 import streamlit as st
 import google.generativeai as genai
-import yt_dlp
 
 st.set_page_config(page_title="IA de Viral Forge", page_icon="⚡", layout="wide")
 
 st.title("⚡ IA de Viral Forge")
-st.write("Transformez vos podcasts et vidéos YouTube en clips viraux TikTok/Reels en 1 clic.")
+st.write("Transformez vos podcasts et vidéos en clips viraux TikTok/Reels en 1 clic.")
 
 # Barre latérale de configuration
 with st.sidebar:
@@ -17,40 +17,11 @@ with st.sidebar:
     num_clips = st.slider("Nombre de clips à générer", min_value=1, max_value=5, value=3)
     st.markdown("[Obtenez votre clé API gratuite sur aistudio.google.com](https://aistudio.google.com)")
 
-# Champ principal
-youtube_url = st.text_input("🔗 Lien de la vidéo YouTube :", placeholder="https://www.youtube.com/watch?v=...")
-
-def download_youtube_video(url, output_path="input_video.mp4"):
-    if os.path.exists(output_path):
-        os.remove(output_path)
-    
-    # Nettoyage absolu de l'URL pour éviter les erreurs de format
-    clean_url = url
-    if "youtu.be/" in url:
-        video_id = url.split("youtu.be/")[1].split("?")[0]
-        clean_url = f"https://www.youtube.com/watch?v={video_id}"
-    elif "v=" in url:
-        video_id = url.split("v=")[1].split("&")[0]
-        clean_url = f"https://www.youtube.com/watch?v={video_id}"
-
-    # Configuration yt-dlp corrigée (SANS le client 'ios' qui cause l'erreur 400)
-    ydl_opts = {
-        'format': 'best',
-        'outtmpl': output_path,
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web']
-            }
-        }
-    }
-    
-    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        ydl.download([clean_url])
-        
-    return output_path
+# Champ d'importation de vidéo depuis la galerie / disque
+uploaded_file = st.file_uploader(
+    "📁 Déposez votre vidéo / podcast ici (MP4, MOV, MKV) :", 
+    type=["mp4", "mov", "mkv"]
+)
 
 def get_video_duration(video_path):
     cmd = [
@@ -83,7 +54,6 @@ def analyze_with_gemini(api_key, duration, num_clips):
     response = model.generate_content(prompt)
     text = response.text.strip()
     
-    import re
     json_match = re.search(r'\[.*\]', text, re.DOTALL)
     if json_match:
         return json.loads(json_match.group(0))
@@ -109,16 +79,20 @@ def crop_to_vertical(input_path, output_path, start, end):
 if st.button("🚀 Générer mes clips viraux", type="primary"):
     if not api_key:
         st.error("❌ Veuillez saisir votre clé API Gemini dans le menu latéral à gauche.")
-    elif not youtube_url:
-        st.error("❌ Veuillez coller un lien de vidéo YouTube valide.")
+    elif uploaded_file is None:
+        st.error("❌ Veuillez déposer un fichier vidéo dans la zone ci-dessus.")
     else:
         try:
             progress_bar = st.progress(0)
             status_text = st.empty()
 
-            status_text.info("⬇️ Téléchargement de la vidéo YouTube...")
+            status_text.info("💾 Réception de la vidéo...")
             progress_bar.progress(15)
-            video_file = download_youtube_video(youtube_url)
+            
+            video_file = "input_video.mp4"
+            with open(video_file, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+
             duration = get_video_duration(video_file)
 
             status_text.info("🧠 Analyse des meilleurs moments avec Gemini...")
