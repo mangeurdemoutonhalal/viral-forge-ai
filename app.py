@@ -4,6 +4,7 @@ import json
 import subprocess
 import streamlit as st
 import google.generativeai as genai
+import yt_dlp
 
 st.set_page_config(page_title="IA de Viral Forge", page_icon="⚡", layout="wide")
 
@@ -23,14 +24,19 @@ youtube_url = st.text_input("🔗 Lien de la vidéo YouTube :", placeholder="htt
 def download_youtube_video(url, output_path="input_video.mp4"):
     if os.path.exists(output_path):
         os.remove(output_path)
-    cmd = [
-        "yt-dlp",
-        "-f", "bestvideo[ext=mp4][height<=720]+bestaudio[ext=m4a]/best[ext=mp4][height<=720]/best",
-        "--merge-output-format", "mp4",
-        "-o", output_path,
-        url
-    ]
-    subprocess.run(cmd, check=True)
+    
+    # Options de téléchargement ultra-compatibles
+    ydl_opts = {
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'outtmpl': output_path,
+        'quiet': True,
+        'no_warnings': True,
+        'noplaylist': True,
+    }
+    
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        ydl.download([url])
+        
     return output_path
 
 def get_video_duration(video_path):
