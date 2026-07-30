@@ -27,8 +27,8 @@ with st.sidebar:
 youtube_url = st.text_input("🔗 Lien de la vidéo YouTube :", placeholder="https://www.youtube.com/watch?v=...")
 
 if st.button("🚀 Générer mes clips viraux", type="primary"):
-    if not gemini_key or not gemini_key.startswith("AIzaSy"):
-        st.error("❌ Ta clé API Gemini est invalide. Elle doit commencer par 'AIzaSy'.")
+   if not api_key:
+    st.info("Veuillez entrer votre clé API Gemini dans le menu latéral.")
     elif not youtube_url:
         st.warning("⚠️ Veuillez entrer un lien YouTube valide.")
     else:
